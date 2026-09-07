@@ -1,64 +1,73 @@
-# Svadobný fotolov - upload do Google Drive
+# Svadobní paparazzi - foto a video od hostí do Google Drive
 
-Jednoduchá webová aplikácia pre svadobných hostí: zadajú meno, vyberú fotky
-a tie idú rovno do tvojho Google Drive priečinka. Žiadna registrácia, žiadna
-aplikácia, žiadna databáza.
+Webová aplikácia pre svadobných hostí: zadajú meno, vyberú fotky alebo videá
+z albumu v telefóne a tie idú rovno do Google Drive priečinka organizátora.
+Bez registrácie, bez inštalácie, bez databázy.
 
-- `/` - nahrávanie fotiek (SK / EN prepínač)
+- `/` - odosielanie, so schovaným zoznamom úloh foto misie
 - `/gallery` - živá galéria, obnovuje sa každých 30 sekúnd
+- `/privacy`, `/terms` - povinné odkazy pre Google OAuth
+- `/api/health` - diagnostika nasadenia (nevypisuje hodnoty premenných)
 
-**Ako to funguje:** server vytvorí na Google Drive tzv. resumable upload
-session a vráti telefónu URL, na ktorú pošle fotku priamo Googlu. Vercel
-funkcia teda nikdy nedrží telo súboru a neplatí pre ňu limit 4,5 MB. Autor
-fotky je zakódovaný v názve súboru, napr.
-`2026-09-05_2143__Zofia-Novakova__IMG_1234.jpg` - preto nie je potrebná
-žiadna databáza.
+## Ako to funguje
+
+Server vytvorí na Google Drive **resumable upload session** a vráti telefónu
+adresu, na ktorú pošle bajty priamo Googlu. Vercel funkcia teda nikdy nedrží
+telo súboru a neplatí pre ňu limit 4,5 MB, takže prejdú aj veľké videá.
+
+Keď priamy prenos neprejde (CORS, prísna sieť), súbor sa pošle po 3 MB kusoch
+cez `/api/upload-chunk`. Pred tým sa aplikácia Googlu opýta, koľko už z toho
+súboru má, aby sa nič nenahralo dvakrát.
+
+Autor je zakódovaný v názve súboru:
+`2026-09-18_2143__Zofia-Novakova__IMG_1234.jpg`. Preto nie je potrebná žiadna
+databáza.
+
+## Jazyk
+
+Určuje sa z nastavenia prehliadača: slovenčina pre `sk` a `cs`, angličtina pre
+všetko ostatné. V pätičke je diskrétny prepínač, jeho voľba sa uloží
+v zariadení hosťa.
+
+## Vzhľad
+
+Paleta a typografia sú prevzaté zo svadobnej pozvánky: krémový papier, sépiová
+hnedá, kaligrafický `Alex Brush` na mená, `Cormorant Garamond` na zvyšok.
+Botanické vetvičky sú kreslené priamo v SVG, nič sa nedoťahuje ako obrázok.
+Stránka drží svetlý vzhľad aj v tmavom režime telefónu.
 
 ---
 
-## Čo budeš potrebovať
+## Nastavenie od nuly
 
-- Google účet, do ktorého Drive majú fotky chodiť
-- účet na [Vercel](https://vercel.com) (stačí free Hobby)
-- Node.js 20+ na počítači (len na jednorazové nastavenie)
+### 1. Google Cloud projekt
 
----
+1. [console.cloud.google.com](https://console.cloud.google.com/), prihlás sa
+   účtom, kam majú súbory chodiť.
+2. Vytvor projekt.
+3. **APIs & Services → Library** → **Google Drive API** → **Enable**.
 
-## Krok 1 - Google Cloud projekt
+### 2. OAuth súhlasná obrazovka
 
-1. Choď na [console.cloud.google.com](https://console.cloud.google.com/) a
-   prihlás sa účtom, kam majú fotky chodiť.
-2. Hore vľavo vytvor nový projekt, napr. `svadba-fotky`.
-3. V ľavom menu **APIs & Services → Library** vyhľadaj **Google Drive API**
-   a daj **Enable**.
+**Google Auth Platform → Branding**: App name, support e-mail, a po nasadení
+na Vercel aj Application home page, Privacy policy (`/privacy`) a Terms
+(`/terms`). Bez tých troch URL sa nedá publikovať.
 
-## Krok 2 - OAuth súhlasná obrazovka
+**Audience** → External → **Publish app** → **In production**.
 
-V ľavom menu choď na **Google Auth Platform** (predtým sa to volalo OAuth
-consent screen).
+> V stave *Testing* Google ruší refresh token po 7 dňoch a odosielanie
+> prestane fungovať. Rozsah `drive.file` nie je citlivý, publikovanie preto
+> neprechádza žiadnym overovaním.
 
-1. **Branding** - App name napr. `Svadobné fotky`, support e-mail tvoj.
-2. **Audience** - zvoľ **External**.
-3. Na tej istej záložke klikni **Publish app** a potvrď prechod do
-   **In production**.
+### 3. OAuth klient
 
-> Toto je dôležité. Kým je appka v stave *Testing*, Google ruší refresh token
-> po 7 dňoch a nahrávanie zrazu prestane fungovať. Rozsah `drive.file`, ktorý
-> používame, nie je citlivý, takže publikovanie neprejde žiadnym overovaním -
-> je to okamžité.
+**Clients → Create client** → **Web application** → Authorized redirect URIs:
 
-## Krok 3 - OAuth klient
+```
+http://localhost:5555/callback
+```
 
-1. **Google Auth Platform → Clients → Create client**
-2. Application type: **Web application**
-3. Name: `wedding-photo`
-4. **Authorized redirect URIs** → pridaj:
-   ```
-   http://localhost:5555/callback
-   ```
-5. Ulož a odlož si **Client ID** a **Client secret**.
-
-## Krok 4 - Projekt na počítači
+### 4. Projekt na počítači
 
 ```bash
 git clone https://github.com/macik1984/wedding_scavenger_app.git
@@ -67,83 +76,70 @@ npm install
 cp .env.example .env.local
 ```
 
-Do `.env.local` vyplň zatiaľ len `GOOGLE_CLIENT_ID` a `GOOGLE_CLIENT_SECRET`.
+Do `.env.local` vyplň `GOOGLE_CLIENT_ID` a `GOOGLE_CLIENT_SECRET`.
 
-## Krok 5 - Refresh token
+### 5. Refresh token
 
 ```bash
 npm run token
 ```
 
-Skript vypíše odkaz. Otvor ho v prehliadači, prihlás sa Google účtom, povoľ
-prístup. V termináli sa objaví riadok `GOOGLE_REFRESH_TOKEN=...` - skopíruj
-ho do `.env.local`.
-
-> Ak Google ukáže varovanie „Google hasn't verified this app", klikni
-> **Advanced → Go to ... (unsafe)**. Je to tvoja vlastná aplikácia.
-
-## Krok 6 - Priečinok na Drive
+### 6. Priečinok na Drive
 
 ```bash
-npm run setup-folder -- "Svadobné fotky 2026"
+npm run setup-folder -- "Svadobne fotky 2026"
 ```
 
-Vypíše `DRIVE_FOLDER_ID=...` - skopíruj do `.env.local`.
+> Priečinok sa **musí** vytvoriť týmto skriptom. Rozsah `drive.file` vidí len
+> to, čo aplikácia sama vytvorila; ručne založený priečinok vracia 404.
 
-> Priečinok sa **musí** vytvoriť takto. Rozsah `drive.file` vidí len súbory
-> a priečinky, ktoré aplikácia sama vytvorila; ručne založený priečinok by
-> vracal 404.
-
-## Krok 7 - Vyskúšaj lokálne
+### 7. Skúška
 
 ```bash
 npm run dev
 ```
 
-Otvor `http://localhost:3000`, nahraj fotku, skontroluj `/gallery` aj svoj
-Google Drive.
+### 8. Vercel
 
-## Krok 8 - Nasadenie na Vercel
+[vercel.com/new](https://vercel.com/new) → import repa → Environment
+Variables → **Deploy**.
 
-1. [vercel.com/new](https://vercel.com/new) → **Import Git Repository** →
-   vyber `macik1984/wedding_scavenger_app`.
-2. V sekcii **Environment Variables** pridaj (hodnoty z `.env.local`):
+| Názov | Povinné |
+|---|---|
+| `GOOGLE_CLIENT_ID` | áno |
+| `GOOGLE_CLIENT_SECRET` | áno |
+| `GOOGLE_REFRESH_TOKEN` | áno |
+| `DRIVE_FOLDER_ID` | áno |
+| `NEXT_PUBLIC_COUPLE` | nie (predvolene `Kika a Miro`) |
+| `NEXT_PUBLIC_WEDDING_DATE` | nie (predvolene `18. 9. 2026`) |
+| `NEXT_PUBLIC_CONTACT_EMAIL` | nie |
 
-   | Názov | Hodnota |
-   |---|---|
-   | `GOOGLE_CLIENT_ID` | z kroku 3 |
-   | `GOOGLE_CLIENT_SECRET` | z kroku 3 |
-   | `GOOGLE_REFRESH_TOKEN` | z kroku 5 |
-   | `DRIVE_FOLDER_ID` | z kroku 6 |
-   | `NEXT_PUBLIC_COUPLE` | napr. `Miroslav & Žofia` |
+Premenné zaškrtni pre **Production**. Po ich zmene treba **Redeploy**, Vercel
+ich číta pri builde.
 
-3. **Deploy**. Za minútu máš adresu typu `wedding-scavenger-app.vercel.app`.
+### 9. QR kód
 
-> Keď neskôr zmeníš niektorú premennú, treba dať **Redeploy** - Vercel ich
-> načítava pri builde.
-
-## Krok 9 - QR kód na stoly
-
-Vygeneruj QR kód na svoju Vercel adresu (napr.
-[qr-code-generator.com](https://www.qr-code-generator.com/)) a daj ho na
-kartičky k úlohám fotolovu.
+Vygeneruj QR kód na svoju adresu a daj ho na kartičky k stolom.
 
 ---
 
 ## Poznámky
 
-- Fotky sa počítajú do úložiska **tvojho** Google účtu. 100 hostí × 20 fotiek
-  po 4 MB ≈ 8 GB - free Google účet má 15 GB, takže sleduj stav.
-- Aplikácia nahráva originály bez zmenšovania.
-- Galéria je verejná pre každého, kto pozná adresu - fotky sa servujú cez
-  `/api/photo/[id]`, samotný Drive priečinok zostáva súkromný.
-- Ak chceš galériu vypnúť, stačí zmazať `app/gallery/` a odkazy naň.
+- Súbory sa počítajú do úložiska **tvojho** Google účtu. Fotky sú po 3 až
+  5 MB, videá aj 100 MB za minútu záznamu - pri videách sleduj voľné miesto.
+- Nahráva sa originál bez zmenšovania.
+- Galéria je prístupná každému, kto pozná adresu; samotný Drive priečinok
+  zostáva súkromný, súbory idú cez `/api/photo/[id]`.
 
 ## Riešenie problémov
 
+Najprv otvor `/api/health`. Povie, ktorá premenná chýba, či prejde výmena
+refresh tokenu a či aplikácia vidí na priečinok.
+
 | Príznak | Príčina |
 |---|---|
+| `slot 500: server_error` | chýba premenná, pozri `/api/health` |
 | `drive_init_failed` | zlé `DRIVE_FOLDER_ID`, alebo priečinok nevytvorený skriptom |
-| `invalid_grant` po týždni | appka zostala v stave *Testing* (krok 2) |
-| Fotky sa nahrajú, galéria prázdna | `DRIVE_FOLDER_ID` ukazuje inam než upload |
-| Build na Verceli padne | chýba niektorá env premenná |
+| `invalid_grant` po týždni | aplikácia zostala v stave *Testing* |
+| Súbory dorazia, galéria prázdna | `DRIVE_FOLDER_ID` ukazuje inam než odosielanie |
+| `SERVICE_DISABLED` | nezapnuté Google Drive API |

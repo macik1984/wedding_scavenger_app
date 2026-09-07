@@ -14,7 +14,9 @@ export async function GET(request) {
     const pageToken = request.nextUrl.searchParams.get('pageToken');
 
     const params = new URLSearchParams({
-      q: `'${folderId}' in parents and trashed = false and mimeType contains 'image/'`,
+      q:
+        `'${folderId}' in parents and trashed = false and ` +
+        `(mimeType contains 'image/' or mimeType contains 'video/')`,
       orderBy: 'createdTime desc',
       pageSize: String(PAGE_SIZE),
       fields: 'nextPageToken, files(id, name, createdTime, mimeType)',
@@ -39,6 +41,7 @@ export async function GET(request) {
       id: f.id,
       guest: guestFromDriveName(f.name),
       createdTime: f.createdTime,
+      video: String(f.mimeType ?? '').startsWith('video/'),
       thumb: `/api/photo/${f.id}?v=thumb`,
       full: `/api/photo/${f.id}?v=full`,
     }));

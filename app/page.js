@@ -4,17 +4,40 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { t } from './copy';
 import useLang from './useLang';
-import LangSwitch from './LangSwitch';
+import Foot from './Foot';
+import { BotanicalTopRight, BotanicalBottomLeft } from './Botanicals';
+import CameraIcon from './CameraIcon';
 
 const NAME_KEY = 'wp_guest';
-const COUPLE = process.env.NEXT_PUBLIC_COUPLE || '';
+const MISSION_KEY = 'wp_missions';
+const COUPLE = process.env.NEXT_PUBLIC_COUPLE || 'Kika a Miro';
+
+// 3 MB: nasobok 256 kB, ako vyzaduje Google, a zaroven pod 4,5 MB limit Vercelu
+const CHUNK = 3 * 1024 * 1024;
 
 function humanSize(bytes) {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} kB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-/** Nahra jeden subor priamo do Google Drive cez resumable session URL. */
+function readStore(key, fallback) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStore(key, value) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* uloziska mozu byt vypnute */
+  }
+}
+
+/** Priamy PUT do Google Drive cez resumable session URL. */
 function putToDrive(uploadUrl, file, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -27,21 +50,15 @@ function putToDrive(uploadUrl, file, onProgress) {
       if (xhr.status >= 200 && xhr.status < 300) resolve();
       else reject(new Error(`drive ${xhr.status}`));
     };
-    xhr.onerror = () => reject(new Error('network'));
+    xhr.onerror = () => reject(new Error('cors'));
     xhr.send(file);
   });
 }
 
-// 3 MB: nasobok 256 kB, ako vyzaduje Google, a zaroven pod 4,5 MB limit Vercelu
-const CHUNK = 3 * 1024 * 1024;
-
 async function chunkCall(uploadUrl, range, body) {
   const res = await fetch(`/api/upload-chunk?url=${encodeURIComponent(uploadUrl)}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/octet-stream',
-      'x-content-range': range,
-    },
+    headers: { 'Content-Type': 'application/octet-stream', 'x-content-range': range },
     body,
   });
   if (!res.ok) throw new Error(`chunk ${res.status}`);
@@ -49,9 +66,8 @@ async function chunkCall(uploadUrl, range, body) {
 }
 
 /**
- * Zaloha, ked priamy PUT neprejde. Najprv sa opytame Googlu, kolko uz ma:
- * priamy upload mohol v skutocnosti prejst a len odpoved zhorela na CORS.
- * Az potom doposielame chybajuce kusy.
+ * Zaloha, ked priamy PUT neprejde. Najprv zistime, kolko uz Google ma:
+ * priamy upload mohol prejst a len odpoved zhorela na CORS.
  */
 async function putViaServer(uploadUrl, file, onProgress) {
   const status = await chunkCall(uploadUrl, `bytes */${file.size}`, null);
@@ -81,35 +97,40 @@ export default function UploadPage() {
   const c = t(lang);
 
   const [guest, setGuest] = useState('');
-  const [items, setItems] = useState([]); // { file, url, pct, state }
+  const [items, setItems] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [doneCount, setDoneCount] = useState(0);
   const [over, setOver] = useState(false);
+  const [ticked, setTicked] = useState([]);
   const inputRef = useRef(null);
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(NAME_KEY);
-      if (saved) setGuest(saved);
-    } catch {
-      /* ignore */
-    }
+    const saved = readStore(NAME_KEY, '');
+    if (typeof saved === 'string' && saved) setGuest(saved);
+    const marks = readStore(MISSION_KEY, []);
+    if (Array.isArray(marks)) setTicked(marks);
   }, []);
 
-  useEffect(() => {
-    return () => items.forEach((i) => URL.revokeObjectURL(i.url));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  function toggleMission(i) {
+    setTicked((prev) => {
+      const next = prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i];
+      writeStore(MISSION_KEY, next);
+      return next;
+    });
+  }
 
   function addFiles(fileList) {
-    const picked = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
+    const picked = Array.from(fileList).filter(
+      (f) => f.type.startsWith('image/') || f.type.startsWith('video/')
+    );
     if (!picked.length) return;
     setItems((prev) => [
       ...prev,
       ...picked.map((file) => ({
         file,
-        url: URL.createObjectURL(file),
+        url: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+        video: file.type.startsWith('video/'),
         pct: 0,
         state: 'pending',
       })),
@@ -119,10 +140,10 @@ export default function UploadPage() {
 
   function removeAt(idx) {
     setItems((prev) => {
-      const copyArr = [...prev];
-      URL.revokeObjectURL(copyArr[idx].url);
-      copyArr.splice(idx, 1);
-      return copyArr;
+      const next = [...prev];
+      if (next[idx].url) URL.revokeObjectURL(next[idx].url);
+      next.splice(idx, 1);
+      return next;
     });
   }
 
@@ -131,15 +152,12 @@ export default function UploadPage() {
     if (!name) return setError(c.errName);
     if (!items.length) return setError(c.errFiles);
 
-    try {
-      window.localStorage.setItem(NAME_KEY, name);
-    } catch {
-      /* ignore */
-    }
-
+    writeStore(NAME_KEY, name);
     setBusy(true);
     setError('');
+
     let ok = 0;
+    let lastReason = '';
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -152,6 +170,7 @@ export default function UploadPage() {
 
       try {
         setState({ state: 'uploading', pct: 0 });
+
         const res = await fetch('/api/upload-slot', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -162,20 +181,31 @@ export default function UploadPage() {
             guest: name,
           }),
         });
-        if (!res.ok) throw new Error('slot');
+
+        if (!res.ok) {
+          let why = `slot ${res.status}`;
+          try {
+            const j = await res.json();
+            if (j.error) why = `slot ${res.status}: ${j.error}`;
+          } catch {
+            /* odpoved nemusi byt JSON */
+          }
+          throw new Error(why);
+        }
+
         const { uploadUrl } = await res.json();
+
         try {
           await putToDrive(uploadUrl, item.file, (pct) => setState({ pct }));
-        } catch (direct) {
-          // najcastejsie CORS; skusime to este raz cez nas server po kusoch
-          console.warn('priamy upload zlyhal, skusam cez server', direct);
+        } catch {
           setState({ pct: 0 });
           await putViaServer(uploadUrl, item.file, (pct) => setState({ pct }));
         }
+
         setState({ state: 'done', pct: 100 });
         ok++;
       } catch (err) {
-        console.error(err);
+        lastReason = err?.message ? String(err.message) : 'unknown';
         setState({ state: 'error' });
       }
     }
@@ -184,10 +214,10 @@ export default function UploadPage() {
 
     if (ok === items.length) {
       setDoneCount(ok);
-      items.forEach((i) => URL.revokeObjectURL(i.url));
+      items.forEach((i) => i.url && URL.revokeObjectURL(i.url));
       setItems([]);
     } else {
-      setError(c.errUpload);
+      setError(lastReason ? `${c.errUpload} (${lastReason})` : c.errUpload);
     }
   }
 
@@ -196,88 +226,82 @@ export default function UploadPage() {
     : 0;
 
   return (
-    <main className="shell">
-      <div className="topbar">
-        <span className="brand">{COUPLE || c.tagline}</span>
-        <LangSwitch lang={lang} onChange={setLang} />
-      </div>
+    <main className="sheet">
+      <BotanicalTopRight />
+      <BotanicalBottomLeft />
 
-      {doneCount > 0 ? (
-        <section className="card success">
-          <div className="mark">✓</div>
-          <h2>{c.done}</h2>
-          <p className="hint">{c.photos(doneCount)}</p>
-          <div className="mt">
-            <button
-              type="button"
-              className="btn btn--ghost"
-              onClick={() => {
-                setDoneCount(0);
-                setError('');
-              }}
-            >
-              {c.doneMore}
-            </button>
-          </div>
-          <div className="mt">
-            <Link className="hint" href="/gallery">
-              {c.gallery} →
-            </Link>
-          </div>
-        </section>
-      ) : (
-        <>
-          <header className="hero">
-            <p className="eyebrow">{c.tagline}</p>
-            <h1>{c.heading}</h1>
-            <div className="rule" />
-            <p>{c.intro}</p>
-          </header>
-
-          <section className="card">
-            <div className="field">
-              <label htmlFor="guest">{c.nameLabel}</label>
-              <input
-                id="guest"
-                type="text"
-                value={guest}
-                onChange={(e) => setGuest(e.target.value)}
-                placeholder={c.namePlaceholder}
-                autoComplete="name"
-                enterKeyHint="done"
-              />
-              <p className="hint">{c.nameHint}</p>
-            </div>
-
-            <div
-              className="drop"
-              data-over={over}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setOver(true);
-              }}
-              onDragLeave={() => setOver(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setOver(false);
-                addFiles(e.dataTransfer.files);
-              }}
-            >
-              <div className="icon">◫</div>
+      <div className="layer">
+        {doneCount > 0 ? (
+          <section className="panel thanks">
+            <div className="mark script">{c.thanksMark}</div>
+            <p className="big">{c.thanksTitle}</p>
+            <p className="note">{c.thanksNote(doneCount)}</p>
+            <div style={{ marginTop: 20 }}>
               <button
                 type="button"
-                className="btn btn--ghost"
-                onClick={() => inputRef.current?.click()}
+                className="btn btn--quiet"
+                onClick={() => {
+                  setDoneCount(0);
+                  setError('');
+                }}
               >
-                {items.length ? c.pickMore : c.pick}
+                {c.more}
               </button>
-              <p className="hint" style={{ marginTop: 10 }}>
-                {c.dropHint}
-              </p>
+            </div>
+            <p className="note" style={{ marginTop: 16 }}>
+              <Link href="/gallery">{c.gallery} →</Link>
+            </p>
+          </section>
+        ) : (
+          <>
+            <header className="head">
+              <p className="eyebrow">{c.eyebrow}</p>
+              <h1 className="names script">{COUPLE}</h1>
+              <hr className="dash" />
+              <p className="display">{c.title}</p>
+              <p className="lead">{c.lead}</p>
+            </header>
+
+            <section className="panel">
+              <div className="field">
+                <label htmlFor="guest">{c.nameLabel}</label>
+                <input
+                  id="guest"
+                  type="text"
+                  value={guest}
+                  onChange={(e) => setGuest(e.target.value)}
+                  placeholder={c.namePlaceholder}
+                  autoComplete="name"
+                  enterKeyHint="done"
+                />
+                <p className="note">{c.nameNote}</p>
+              </div>
+
+              <button
+                type="button"
+                className="pick"
+                data-over={over}
+                onClick={() => inputRef.current?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setOver(true);
+                }}
+                onDragLeave={() => setOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setOver(false);
+                  addFiles(e.dataTransfer.files);
+                }}
+              >
+                <CameraIcon />
+                <span className="big">{items.length ? c.pickMore : c.pick}</span>
+                <span className="note">{c.pickNote}</span>
+              </button>
+
               <input
                 ref={inputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,video/*"
                 multiple
                 hidden
                 onChange={(e) => {
@@ -285,70 +309,108 @@ export default function UploadPage() {
                   e.target.value = '';
                 }}
               />
-            </div>
 
-            {items.length > 0 && (
-              <ul className="files">
-                {items.map((item, i) => (
-                  <li key={`${item.file.name}-${i}`}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img className="thumb" src={item.url} alt="" />
-                    <div className="meta">
-                      <div className="name">{item.file.name}</div>
-                      <div className="sub">
-                        {item.state === 'done' && <span className="state-ok">✓ 100%</span>}
-                        {item.state === 'error' && <span className="state-err">✕</span>}
-                        {item.state === 'uploading' && `${item.pct}%`}
-                        {item.state === 'pending' && humanSize(item.file.size)}
-                      </div>
-                      {item.state === 'uploading' && (
-                        <div className="bar">
-                          <span style={{ width: `${item.pct}%` }} />
-                        </div>
+              {items.length > 0 && (
+                <ul className="files">
+                  {items.map((item, i) => (
+                    <li key={`${item.file.name}-${i}`}>
+                      {item.url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img className="thumb" src={item.url} alt="" />
+                      ) : (
+                        <span
+                          className="thumb"
+                          style={{
+                            display: 'grid',
+                            placeItems: 'center',
+                            fontSize: 11,
+                            color: 'var(--ink-soft)',
+                          }}
+                        >
+                          ▶
+                        </span>
                       )}
-                    </div>
-                    {!busy && (
-                      <button
-                        type="button"
-                        className="remove"
-                        aria-label="remove"
-                        onClick={() => removeAt(i)}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
+                      <div className="meta">
+                        <div className="name">{item.file.name}</div>
+                        <div className="sub">
+                          {item.state === 'done' && <span className="state-ok">✓</span>}
+                          {item.state === 'error' && <span className="state-err">✕</span>}
+                          {item.state === 'uploading' && `${item.pct} %`}
+                          {item.state === 'pending' && humanSize(item.file.size)}
+                        </div>
+                        {item.state === 'uploading' && (
+                          <div className="bar">
+                            <span style={{ width: `${item.pct}%` }} />
+                          </div>
+                        )}
+                      </div>
+                      {!busy && (
+                        <button
+                          type="button"
+                          className="drop"
+                          aria-label="remove"
+                          onClick={() => removeAt(i)}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
 
-            {error && <div className="alert">{error}</div>}
+              {error && <div className="alert">{error}</div>}
 
-            <div className="mt">
-              <button
-                type="button"
-                className="btn btn--primary"
-                disabled={busy || !items.length}
-                onClick={upload}
-              >
-                {busy ? `${c.uploading} ${totalPct}%` : `${c.upload} ${items.length ? `(${items.length})` : ''}`}
-              </button>
-            </div>
-          </section>
+              <div style={{ marginTop: 18 }}>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={busy || !items.length}
+                  onClick={upload}
+                >
+                  {busy
+                    ? `${c.uploading} ${totalPct} %`
+                    : items.length
+                      ? `${c.upload} · ${c.selected(items.length)}`
+                      : c.upload}
+                </button>
+              </div>
 
-          <p className="footer">
-            <Link href="/gallery">{c.gallery} →</Link>
-            <br />
-            <Link href="/privacy" style={{ fontSize: 12, opacity: 0.7 }}>
-              {lang === 'sk' ? 'Ochrana osobných údajov' : 'Privacy'}
-            </Link>
-            {' · '}
-            <Link href="/terms" style={{ fontSize: 12, opacity: 0.7 }}>
-              {lang === 'sk' ? 'Podmienky' : 'Terms'}
-            </Link>
-          </p>
-        </>
-      )}
+              <details className="missions">
+                <summary>
+                  <span>{c.missionsTitle}</span>
+                  <span className="chev" aria-hidden="true">
+                    ⌄
+                  </span>
+                </summary>
+                <ul>
+                  {c.missions.map((m, i) => (
+                    <li key={m}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={ticked.includes(i)}
+                          onChange={() => toggleMission(i)}
+                        />
+                        <span>{m}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+                <p className="closing">{c.missionsClosing}</p>
+              </details>
+            </section>
+          </>
+        )}
+
+        <Foot lang={lang} onLang={setLang}>
+          {doneCount === 0 && (
+            <p className="links" style={{ marginBottom: 18 }}>
+              <Link href="/gallery">{c.gallery} →</Link>
+            </p>
+          )}
+        </Foot>
+      </div>
     </main>
   );
 }

@@ -1,18 +1,23 @@
 import './globals.css';
 
-const couple = process.env.NEXT_PUBLIC_COUPLE || 'Naša svadba';
+const couple = process.env.NEXT_PUBLIC_COUPLE || 'Kika a Miro';
 
 export const metadata = {
-  title: `${couple} - fotky`,
-  description: 'Nahrajte svadobné fotky priamo do nášho albumu.',
+  title: `${couple} · svadobní paparazzi`,
+  description: 'Pošlite nám fotky a videá z našej svadby.',
   robots: { index: false, follow: false },
+  openGraph: {
+    title: `${couple}`,
+    description: 'Svadobná foto misia - pošlite nám svoje fotky.',
+  },
 };
 
 export const viewport = {
-  themeColor: '#faf6f0',
+  themeColor: '#fbf7f0',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }) {
@@ -22,7 +27,7 @@ export default function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Cormorant+Garamond:wght@300;400;500;600&display=swap"
           rel="stylesheet"
         />
       </head>

@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { t } from '../copy';
 import useLang from '../useLang';
-import LangSwitch from '../LangSwitch';
+import Foot from '../Foot';
+import { BotanicalTopRight } from '../Botanicals';
 
-const COUPLE = process.env.NEXT_PUBLIC_COUPLE || '';
 const POLL_MS = 30000;
 
 export default function GalleryPage() {
@@ -26,7 +26,7 @@ export default function GalleryPage() {
       setFiles(data.files ?? []);
       setNextToken(data.nextPageToken ?? null);
     } catch {
-      /* siet na svadbe byva vrtkava - ticho skusime o 30 s znova */
+      /* siet na svadbe byva vrtkava - o 30 s to skusime znova */
     } finally {
       setLoading(false);
     }
@@ -52,7 +52,7 @@ export default function GalleryPage() {
       });
       setNextToken(data.nextPageToken ?? null);
     } catch {
-      /* ignore */
+      /* ignorujeme */
     }
   }
 
@@ -64,56 +64,70 @@ export default function GalleryPage() {
   }, [open]);
 
   return (
-    <main className="shell shell--wide">
-      <div className="topbar">
-        <span className="brand">{COUPLE || c.tagline}</span>
-        <LangSwitch lang={lang} onChange={setLang} />
+    <main className="sheet sheet--wide">
+      <BotanicalTopRight />
+
+      <div className="layer">
+        <header className="head">
+          <p className="eyebrow">{c.galleryTitle}</p>
+          <h1 className="display" style={{ marginTop: 10 }}>
+            {files.length ? c.selected(files.length) : c.galleryTitle}
+          </h1>
+          <hr className="dash" />
+          <p className="lead">{c.galleryNote}</p>
+        </header>
+
+        {loading ? (
+          <p className="muted">·</p>
+        ) : files.length === 0 ? (
+          <p className="muted">{c.empty}</p>
+        ) : (
+          <div className="grid">
+            {files.map((f) => (
+              <figure key={f.id} style={{ margin: 0 }}>
+                <button type="button" className="tile" onClick={() => setOpen(f)}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={f.thumb} alt={f.guest ?? ''} loading="lazy" decoding="async" />
+                  {f.video && <span className="play">▶</span>}
+                  {f.guest && <figcaption>{f.guest}</figcaption>}
+                </button>
+              </figure>
+            ))}
+          </div>
+        )}
+
+        {nextToken && (
+          <p style={{ textAlign: 'center', marginTop: 20 }}>
+            <button type="button" className="btn btn--quiet" onClick={loadMore}>
+              {c.loadMore}
+            </button>
+          </p>
+        )}
+
+        <Foot lang={lang} onLang={setLang}>
+          <p className="links" style={{ marginBottom: 18 }}>
+            <Link href="/">← {c.back}</Link>
+          </p>
+        </Foot>
       </div>
-
-      <header className="hero">
-        <p className="eyebrow">{c.galleryTitle}</p>
-        <h1>{files.length ? c.photos(files.length) : c.galleryTitle}</h1>
-        <div className="rule" />
-        <p>{c.gallerySub}</p>
-      </header>
-
-      {loading ? (
-        <p className="muted">…</p>
-      ) : files.length === 0 ? (
-        <p className="muted">{c.empty}</p>
-      ) : (
-        <div className="grid">
-          {files.map((f) => (
-            <figure key={f.id} style={{ margin: 0 }}>
-              <button type="button" className="tile" onClick={() => setOpen(f)}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={f.thumb} alt={f.guest ?? ''} loading="lazy" decoding="async" />
-                {f.guest && <figcaption>{f.guest}</figcaption>}
-              </button>
-            </figure>
-          ))}
-        </div>
-      )}
-
-      {nextToken && (
-        <p className="center mt">
-          <button type="button" className="btn btn--ghost" onClick={loadMore}>
-            {c.loadMore}
-          </button>
-        </p>
-      )}
-
-      <p className="footer">
-        <Link href="/">← {c.back}</Link>
-      </p>
 
       {open && (
         <div className="lightbox" onClick={() => setOpen(null)} role="dialog" aria-modal="true">
           <button type="button" className="close" aria-label={c.close}>
             ×
           </button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={open.full} alt={open.guest ?? ''} />
+          {open.video ? (
+            <video
+              src={open.full}
+              controls
+              autoPlay
+              playsInline
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={open.full} alt={open.guest ?? ''} />
+          )}
         </div>
       )}
     </main>

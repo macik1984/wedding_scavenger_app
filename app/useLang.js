@@ -1,9 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { detectLang } from './copy';
 
 const KEY = 'wp_lang';
 
+/**
+ * Jazyk sa urcuje z nastavenia prehliadaca. Ked si ho host raz prepne
+ * rucne, jeho volba ma prednost - ulozime si ju v jeho zariadeni.
+ *
+ * Prvy render je vzdy 'sk', aby sa server a klient zhodli; skutocny jazyk
+ * dosadime hned v efekte.
+ */
 export default function useLang() {
   const [lang, setLang] = useState('sk');
 
@@ -12,21 +20,21 @@ export default function useLang() {
     try {
       saved = window.localStorage.getItem(KEY);
     } catch {
-      /* niektore prehliadace maju uloziska vypnute */
+      /* prehliadac moze mat uloziska vypnute */
     }
-    if (saved === 'sk' || saved === 'en') {
-      setLang(saved);
-    } else if (typeof navigator !== 'undefined' && !navigator.language?.startsWith('sk')) {
-      setLang('en');
-    }
+    setLang(saved === 'sk' || saved === 'en' ? saved : detectLang());
   }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
 
   const change = (next) => {
     setLang(next);
     try {
       window.localStorage.setItem(KEY, next);
     } catch {
-      /* ignore */
+      /* ignorujeme */
     }
   };
 

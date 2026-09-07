@@ -2,63 +2,128 @@ export const LANGS = ['sk', 'en'];
 
 export const copy = {
   sk: {
-    label: 'SK',
-    tagline: 'Svadobný fotolov',
-    heading: 'Nafoťte to za nás',
-    intro:
-      'Na stole máte kartičku s úlohami. Fotky nahrajte sem - idú rovno do nášho albumu. Žiadna registrácia, žiadna aplikácia.',
+    label: 'SLOVENSKY',
+    htmlLang: 'sk',
+    eyebrow: 'Svadobná foto misia',
+    title: 'Svadobní paparazzi',
+    lead: 'Zachyťte náš deň aj vašimi očami',
+
     nameLabel: 'Vaše meno',
     namePlaceholder: 'napr. Žofia Nováková',
-    nameHint: 'Aby sme vedeli, komu poďakovať.',
+    nameNote: 'Aby sme vedeli, komu poďakovať.',
+
     pick: 'Vybrať fotky',
     pickMore: 'Pridať ďalšie',
-    dropHint: 'alebo sem presuňte fotky',
-    upload: 'Nahrať',
-    uploading: 'Nahrávam...',
-    done: 'Hotovo, ďakujeme!',
-    doneMore: 'Nahrať ďalšie fotky',
+    pickNote: 'Fotky aj videá, priamo z vášho albumu.',
+    upload: 'Odoslať',
+    uploading: 'Odosielam',
+    selected: (n) => `${n} ${n === 1 ? 'súbor' : n < 5 ? 'súbory' : 'súborov'}`,
+
+    missionsTitle: 'Vypátrajte aspoň niečo z tohto',
+    missions: [
+      'selfie s niekým, koho si dnes ešte nespoznal',
+      'selfie s mladomanželmi',
+      'skupinovú fotku pri stole',
+      'najväčší smiech',
+      'najdivokejší tanečný pohyb',
+      'tajný útok na koláče',
+      'romantický moment',
+      'niekoho, kto to na parkete prežíva až priveľmi',
+      'moment, ktorý by nám inak ušiel',
+    ],
+    missionsClosing: 'Čím spontánnejšie, tým lepšie.',
+
+    thanksMark: 'Ďakujeme!',
+    thanksTitle: 'Máme to',
+    thanksNote: (n) => `${n} ${n === 1 ? 'súbor je' : n < 5 ? 'súbory sú' : 'súborov je'} v našom albume.`,
+    more: 'Poslať ďalšie',
+
     gallery: 'Pozrieť galériu',
-    back: 'Späť na nahrávanie',
+    back: 'Späť na odosielanie',
     galleryTitle: 'Živá galéria',
-    gallerySub: 'Aktualizuje sa každých 30 sekúnd.',
-    empty: 'Zatiaľ žiadne fotky. Buďte prví.',
+    galleryNote: 'Obnovuje sa každých 30 sekúnd.',
+    empty: 'Zatiaľ nič. Buďte prví.',
     loadMore: 'Načítať ďalšie',
-    errName: 'Najprv prosím zadajte meno.',
-    errFiles: 'Vyberte aspoň jednu fotku.',
-    errUpload: 'Nahrávanie zlyhalo. Skúste to prosím znova.',
-    photos: (n) => `${n} ${n === 1 ? 'fotka' : n < 5 ? 'fotky' : 'fotiek'}`,
     close: 'Zavrieť',
+
+    errName: 'Najprv prosím zadajte meno.',
+    errFiles: 'Vyberte aspoň jeden súbor.',
+    errUpload: 'Odoslanie sa nepodarilo. Skúste to prosím znova.',
+
+    privacy: 'Ochrana údajov',
+    terms: 'Podmienky',
   },
+
   en: {
-    label: 'EN',
-    tagline: 'Wedding photo hunt',
-    heading: 'Shoot it for us',
-    intro:
-      'There is a task card on your table. Upload your photos here - they go straight into our album. No sign-up, no app.',
+    label: 'ENGLISH',
+    htmlLang: 'en',
+    eyebrow: 'Wedding photo mission',
+    title: 'Wedding paparazzi',
+    lead: 'Capture our day through your eyes',
+
     nameLabel: 'Your name',
     namePlaceholder: 'e.g. Sophie Novak',
-    nameHint: 'So we know who to thank.',
+    nameNote: 'So we know who to thank.',
+
     pick: 'Choose photos',
     pickMore: 'Add more',
-    dropHint: 'or drop photos here',
-    upload: 'Upload',
-    uploading: 'Uploading...',
-    done: 'All done, thank you!',
-    doneMore: 'Upload more photos',
-    gallery: 'View gallery',
-    back: 'Back to upload',
+    pickNote: 'Photos and videos, straight from your album.',
+    upload: 'Send',
+    uploading: 'Sending',
+    selected: (n) => `${n} file${n === 1 ? '' : 's'}`,
+
+    missionsTitle: 'Hunt down at least a few of these',
+    missions: [
+      'a selfie with someone you met today',
+      'a selfie with the newlyweds',
+      'a group shot at your table',
+      'the biggest laugh',
+      'the wildest dance move',
+      'a secret raid on the cake table',
+      'a romantic moment',
+      'someone enjoying the dance floor a little too much',
+      'a moment we would otherwise have missed',
+    ],
+    missionsClosing: 'The more spontaneous, the better.',
+
+    thanksMark: 'Thank you!',
+    thanksTitle: 'Got it',
+    thanksNote: (n) => `${n} file${n === 1 ? '' : 's'} added to our album.`,
+    more: 'Send more',
+
+    gallery: 'View the gallery',
+    back: 'Back to sending',
     galleryTitle: 'Live gallery',
-    gallerySub: 'Refreshes every 30 seconds.',
-    empty: 'No photos yet. Be the first.',
+    galleryNote: 'Refreshes every 30 seconds.',
+    empty: 'Nothing yet. Be the first.',
     loadMore: 'Load more',
-    errName: 'Please enter your name first.',
-    errFiles: 'Pick at least one photo.',
-    errUpload: 'Upload failed. Please try again.',
-    photos: (n) => `${n} photo${n === 1 ? '' : 's'}`,
     close: 'Close',
+
+    errName: 'Please enter your name first.',
+    errFiles: 'Pick at least one file.',
+    errUpload: 'Sending failed. Please try again.',
+
+    privacy: 'Privacy',
+    terms: 'Terms',
   },
 };
 
 export function t(lang) {
   return copy[lang] ?? copy.sk;
+}
+
+/**
+ * Slovencina pre slovenske a ceske prehliadace, anglictina pre vsetky ostatne.
+ * Pozerame na cely zoznam jazykov, nie len na ten prvy - hostia s telefonom
+ * v anglictine, ktori maju slovencinu ako druhu volbu, dostanu slovencinu.
+ */
+export function detectLang() {
+  if (typeof navigator === 'undefined') return 'sk';
+  const list = navigator.languages?.length ? navigator.languages : [navigator.language];
+  for (const raw of list) {
+    const code = String(raw ?? '').toLowerCase();
+    if (code.startsWith('sk') || code.startsWith('cs') || code.startsWith('cz')) return 'sk';
+    if (code) return 'en';
+  }
+  return 'en';
 }
