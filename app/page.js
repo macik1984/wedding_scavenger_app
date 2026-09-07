@@ -287,6 +287,14 @@ export default function UploadPage() {
 
           <p className="footer">
             <Link href="/gallery">{c.gallery} →</Link>
+            <br />
+            <Link href="/privacy" style={{ fontSize: 12, opacity: 0.7 }}>
+              {lang === 'sk' ? 'Ochrana osobných údajov' : 'Privacy'}
+            </Link>
+            {' · '}
+            <Link href="/terms" style={{ fontSize: 12, opacity: 0.7 }}>
+              {lang === 'sk' ? 'Podmienky' : 'Terms'}
+            </Link>
           </p>
         </>
       )}
