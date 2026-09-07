@@ -1,0 +1,18 @@
+{
+  "name": "wedding-scavenger-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "token": "node scripts/get-refresh-token.mjs",
+    "setup-folder": "node scripts/setup-folder.mjs"
+  },
+  "dependencies": {
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  }
+}
