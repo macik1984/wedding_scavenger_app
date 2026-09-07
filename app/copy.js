@@ -17,6 +17,8 @@ export const copy = {
     pickNote: 'Fotky aj videá, priamo z vášho albumu.',
     upload: 'Odoslať',
     uploading: 'Odosielam',
+    keepOpen: 'Nechajte stránku otvorenú a obrazovku zapnutú, kým sa to nedokončí.',
+    bigFile: 'Veľké video pošlite radšej na wifi, na mobilných dátach to potrvá.',
     selected: (n) => `${n} ${n === 1 ? 'súbor' : n < 5 ? 'súbory' : 'súborov'}`,
 
     missionsTitle: 'Vypátrajte aspoň niečo z tohto',
@@ -70,6 +72,8 @@ export const copy = {
     pickNote: 'Photos and videos, straight from your album.',
     upload: 'Send',
     uploading: 'Sending',
+    keepOpen: 'Keep this page open and your screen awake until it finishes.',
+    bigFile: 'Large videos go faster on wifi than on mobile data.',
     selected: (n) => `${n} file${n === 1 ? '' : 's'}`,
 
     missionsTitle: 'Hunt down at least a few of these',

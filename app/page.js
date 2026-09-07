@@ -112,6 +112,17 @@ export default function UploadPage() {
     if (Array.isArray(marks)) setTicked(marks);
   }, []);
 
+  // Kym prenos bezi, zavretie karty by ho prerusilo - prehliadac sa opyta.
+  useEffect(() => {
+    if (!busy) return;
+    const warn = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [busy]);
+
   function toggleMission(i) {
     setTicked((prev) => {
       const next = prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i];
@@ -147,6 +158,45 @@ export default function UploadPage() {
     });
   }
 
+  async function uploadOne(list, index, name, setState) {
+    const item = list[index];
+    setState({ state: 'uploading', pct: 0 });
+
+    const res = await fetch('/api/upload-slot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: item.file.name,
+        mimeType: item.file.type,
+        size: item.file.size,
+        guest: name,
+      }),
+    });
+
+    if (!res.ok) {
+      let why = `slot ${res.status}`;
+      try {
+        const j = await res.json();
+        if (j.error) why = `slot ${res.status}: ${j.error}`;
+      } catch {
+        /* odpoved nemusi byt JSON */
+      }
+      throw new Error(why);
+    }
+
+    const { uploadUrl } = await res.json();
+
+    try {
+      await putToDrive(uploadUrl, item.file, (pct) => setState({ pct }));
+    } catch {
+      // najcastejsie CORS, ale aj vypadok siete - server vie prenos dokoncit
+      setState({ pct: 0 });
+      await putViaServer(uploadUrl, item.file, (pct) => setState({ pct }));
+    }
+
+    setState({ state: 'done', pct: 100 });
+  }
+
   async function upload() {
     const name = guest.trim();
     if (!name) return setError(c.errName);
@@ -156,74 +206,66 @@ export default function UploadPage() {
     setBusy(true);
     setError('');
 
-    let ok = 0;
+    // Obrazovka nesmie zhasnut - uspaty prehliadac prenos zastavi.
+    let wake = null;
+    try {
+      wake = await navigator.wakeLock?.request('screen');
+    } catch {
+      /* starsie prehliadace to nevedia; nevadi */
+    }
+
+    const list = items;
+    const queue = list.map((_, i) => i).filter((i) => list[i].state !== 'done');
+    const failed = [];
     let lastReason = '';
+    let cursor = 0;
 
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.state === 'done') {
-        ok++;
-        continue;
-      }
-      const setState = (patch) =>
-        setItems((prev) => prev.map((it, k) => (k === i ? { ...it, ...patch } : it)));
-
-      try {
-        setState({ state: 'uploading', pct: 0 });
-
-        const res = await fetch('/api/upload-slot', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            filename: item.file.name,
-            mimeType: item.file.type,
-            size: item.file.size,
-            guest: name,
-          }),
-        });
-
-        if (!res.ok) {
-          let why = `slot ${res.status}`;
-          try {
-            const j = await res.json();
-            if (j.error) why = `slot ${res.status}: ${j.error}`;
-          } catch {
-            /* odpoved nemusi byt JSON */
-          }
-          throw new Error(why);
-        }
-
-        const { uploadUrl } = await res.json();
-
+    // Dva prenosy naraz. Mobilna siet ma vysoku latenciu, takze kym jeden
+    // subor caka na odpoved, druhy stiha posielat data. Vyssie cislo uz
+    // na slabom signale skor uskodi.
+    const worker = async () => {
+      while (cursor < queue.length) {
+        const index = queue[cursor++];
+        const setState = (patch) =>
+          setItems((prev) => prev.map((it, k) => (k === index ? { ...it, ...patch } : it)));
         try {
-          await putToDrive(uploadUrl, item.file, (pct) => setState({ pct }));
-        } catch {
-          setState({ pct: 0 });
-          await putViaServer(uploadUrl, item.file, (pct) => setState({ pct }));
+          await uploadOne(list, index, name, setState);
+        } catch (err) {
+          lastReason = err?.message ? String(err.message) : 'unknown';
+          setState({ state: 'error' });
+          failed.push(index);
         }
-
-        setState({ state: 'done', pct: 100 });
-        ok++;
-      } catch (err) {
-        lastReason = err?.message ? String(err.message) : 'unknown';
-        setState({ state: 'error' });
       }
+    };
+
+    await Promise.all([worker(), worker()]);
+
+    try {
+      await wake?.release();
+    } catch {
+      /* ignorujeme */
     }
 
     setBusy(false);
 
-    if (ok === items.length) {
-      setDoneCount(ok);
-      items.forEach((i) => i.url && URL.revokeObjectURL(i.url));
+    if (failed.length === 0) {
+      const total = list.length;
+      setDoneCount(total);
+      list.forEach((i) => i.url && URL.revokeObjectURL(i.url));
       setItems([]);
     } else {
       setError(lastReason ? `${c.errUpload} (${lastReason})` : c.errUpload);
     }
   }
 
-  const totalPct = items.length
-    ? Math.round(items.reduce((s, i) => s + i.pct, 0) / items.length)
+  // Priebeh vazime velkostou suborov, inak by mala fotka skakala rovnako
+  // rychlo ako sto megabajtove video.
+  const totalBytes = items.reduce((s, i) => s + i.file.size, 0);
+  const totalPct = totalBytes
+    ? Math.round(items.reduce((s, i) => s + (i.pct / 100) * i.file.size, 0) / totalBytes * 100)
     : 0;
+
+  const hasBigFile = items.some((i) => i.file.size > 40 * 1024 * 1024);
 
   return (
     <main className="sheet">
@@ -374,6 +416,17 @@ export default function UploadPage() {
                       ? `${c.upload} · ${c.selected(items.length)}`
                       : c.upload}
                 </button>
+
+                {busy && (
+                  <p className="note" style={{ textAlign: 'center', marginTop: 10 }}>
+                    {c.keepOpen}
+                  </p>
+                )}
+                {!busy && hasBigFile && (
+                  <p className="note" style={{ textAlign: 'center', marginTop: 10 }}>
+                    {c.bigFile}
+                  </p>
+                )}
               </div>
 
               <details className="missions">
