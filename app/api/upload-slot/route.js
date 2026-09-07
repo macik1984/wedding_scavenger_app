@@ -32,6 +32,11 @@ export async function POST(request) {
     };
     if (size) headers['X-Upload-Content-Length'] = String(size);
 
+    // Google nastavuje CORS pravidla upload session podla hlavicky Origin,
+    // ktoru dostane pri jej zakladani. Bez nej prehliadac PUT vobec neodosle.
+    const origin = request.headers.get('origin');
+    if (origin) headers['Origin'] = origin;
+
     const res = await fetch(
       'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true',
       {

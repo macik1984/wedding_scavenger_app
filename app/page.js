@@ -32,6 +32,50 @@ function putToDrive(uploadUrl, file, onProgress) {
   });
 }
 
+// 3 MB: nasobok 256 kB, ako vyzaduje Google, a zaroven pod 4,5 MB limit Vercelu
+const CHUNK = 3 * 1024 * 1024;
+
+async function chunkCall(uploadUrl, range, body) {
+  const res = await fetch(`/api/upload-chunk?url=${encodeURIComponent(uploadUrl)}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/octet-stream',
+      'x-content-range': range,
+    },
+    body,
+  });
+  if (!res.ok) throw new Error(`chunk ${res.status}`);
+  return res.json();
+}
+
+/**
+ * Zaloha, ked priamy PUT neprejde. Najprv sa opytame Googlu, kolko uz ma:
+ * priamy upload mohol v skutocnosti prejst a len odpoved zhorela na CORS.
+ * Az potom doposielame chybajuce kusy.
+ */
+async function putViaServer(uploadUrl, file, onProgress) {
+  const status = await chunkCall(uploadUrl, `bytes */${file.size}`, null);
+  if (status.done) {
+    onProgress(100);
+    return;
+  }
+
+  let start = status.received ?? 0;
+  onProgress(Math.round((start / file.size) * 100));
+
+  while (start < file.size) {
+    const end = Math.min(start + CHUNK, file.size);
+    const out = await chunkCall(
+      uploadUrl,
+      `bytes ${start}-${end - 1}/${file.size}`,
+      file.slice(start, end)
+    );
+    start = out.done ? file.size : out.received || end;
+    onProgress(Math.round((start / file.size) * 100));
+    if (out.done) return;
+  }
+}
+
 export default function UploadPage() {
   const [lang, setLang] = useLang();
   const c = t(lang);
@@ -120,7 +164,14 @@ export default function UploadPage() {
         });
         if (!res.ok) throw new Error('slot');
         const { uploadUrl } = await res.json();
-        await putToDrive(uploadUrl, item.file, (pct) => setState({ pct }));
+        try {
+          await putToDrive(uploadUrl, item.file, (pct) => setState({ pct }));
+        } catch (direct) {
+          // najcastejsie CORS; skusime to este raz cez nas server po kusoch
+          console.warn('priamy upload zlyhal, skusam cez server', direct);
+          setState({ pct: 0 });
+          await putViaServer(uploadUrl, item.file, (pct) => setState({ pct }));
+        }
         setState({ state: 'done', pct: 100 });
         ok++;
       } catch (err) {
