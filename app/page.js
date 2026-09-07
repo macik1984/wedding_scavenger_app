@@ -100,6 +100,8 @@ export default function UploadPage() {
   const [items, setItems] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [failedCount, setFailedCount] = useState(0);
   const [doneCount, setDoneCount] = useState(0);
   const [over, setOver] = useState(false);
   const [ticked, setTicked] = useState([]);
@@ -136,16 +138,34 @@ export default function UploadPage() {
       (f) => f.type.startsWith('image/') || f.type.startsWith('video/')
     );
     if (!picked.length) return;
-    setItems((prev) => [
-      ...prev,
-      ...picked.map((file) => ({
-        file,
-        url: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
-        video: file.type.startsWith('video/'),
-        pct: 0,
-        state: 'pending',
-      })),
-    ]);
+
+    setItems((prev) => {
+      // Hostia casto vyberu tie iste fotky dvakrat; nechceme ich posielat
+      // dvakrat ani nudit duplikatmi v zozname.
+      const seen = new Set(prev.map((it) => `${it.file.name}|${it.file.size}`));
+      const fresh = [];
+      let dupes = 0;
+
+      for (const file of picked) {
+        const key = `${file.name}|${file.size}`;
+        if (seen.has(key)) {
+          dupes++;
+          continue;
+        }
+        seen.add(key);
+        fresh.push({
+          file,
+          url: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+          video: file.type.startsWith('video/'),
+          pct: 0,
+          state: 'pending',
+        });
+      }
+
+      setNotice(dupes ? c.dupes(dupes) : '');
+      return fresh.length ? [...prev, ...fresh] : prev;
+    });
+
     setError('');
   }
 
@@ -191,7 +211,16 @@ export default function UploadPage() {
     } catch {
       // najcastejsie CORS, ale aj vypadok siete - server vie prenos dokoncit
       setState({ pct: 0 });
-      await putViaServer(uploadUrl, item.file, (pct) => setState({ pct }));
+      try {
+        await putViaServer(uploadUrl, item.file, (pct) => setState({ pct }));
+      } catch {
+        // Jeden vypadok signalu este neznamena stratenu fotku. Sonda na
+        // zaciatku zisti, kolko uz Google ma, takze nadviazeme, nezacneme
+        // odznova.
+        await new Promise((r) => setTimeout(r, 1500));
+        setState({ pct: 0 });
+        await putViaServer(uploadUrl, item.file, (pct) => setState({ pct }));
+      }
     }
 
     setState({ state: 'done', pct: 100 });
@@ -202,9 +231,14 @@ export default function UploadPage() {
     if (!name) return setError(c.errName);
     if (!items.length) return setError(c.errFiles);
 
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return setError(c.offline);
+    }
+
     writeStore(NAME_KEY, name);
     setBusy(true);
     setError('');
+    setNotice('');
 
     // Obrazovka nesmie zhasnut - uspaty prehliadac prenos zastavi.
     let wake = null;
@@ -247,6 +281,7 @@ export default function UploadPage() {
     }
 
     setBusy(false);
+    setFailedCount(failed.length);
 
     if (failed.length === 0) {
       const total = list.length;
@@ -401,7 +436,14 @@ export default function UploadPage() {
                 </ul>
               )}
 
-              {error && <div className="alert">{error}</div>}
+              {notice && !error && <p className="note">{notice}</p>}
+
+              {error && (
+                <div className="alert">
+                  {error}
+                  {failedCount > 0 && <span className="sub">{c.retryNote}</span>}
+                </div>
+              )}
 
               <div style={{ marginTop: 18 }}>
                 <button
@@ -412,9 +454,11 @@ export default function UploadPage() {
                 >
                   {busy
                     ? `${c.uploading} ${totalPct} %`
-                    : items.length
-                      ? `${c.upload} · ${c.selected(items.length)}`
-                      : c.upload}
+                    : failedCount > 0
+                      ? c.retry
+                      : items.length
+                        ? `${c.upload} · ${c.selected(items.length)}`
+                        : c.upload}
                 </button>
 
                 {busy && (

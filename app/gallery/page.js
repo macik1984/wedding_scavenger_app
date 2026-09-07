@@ -78,7 +78,11 @@ export default function GalleryPage() {
         </header>
 
         {loading ? (
-          <p className="muted">·</p>
+          <div className="grid" aria-hidden="true">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div key={i} className="skeleton" />
+            ))}
+          </div>
         ) : files.length === 0 ? (
           <p className="muted">{c.empty}</p>
         ) : (
@@ -107,6 +111,8 @@ export default function GalleryPage() {
         <Foot lang={lang} onLang={setLang}>
           <p className="links" style={{ marginBottom: 18 }}>
             <Link href="/">← {c.back}</Link>
+            {' · '}
+            <Link href="/slideshow">{c.slideshow}</Link>
           </p>
         </Foot>
       </div>

@@ -6,6 +6,7 @@ Bez registrácie, bez inštalácie, bez databázy.
 
 - `/` - odosielanie, so schovaným zoznamom úloh foto misie
 - `/gallery` - živá galéria, obnovuje sa každých 30 sekúnd
+- `/slideshow` - premietanie na projektor alebo televízor v sále
 - `/privacy`, `/terms` - povinné odkazy pre Google OAuth
 - `/api/health` - diagnostika nasadenia (nevypisuje hodnoty premenných)
 
@@ -22,6 +23,14 @@ súboru má, aby sa nič nenahralo dvakrát.
 Autor je zakódovaný v názve súboru:
 `2026-09-18_2143__Zofia-Novakova__IMG_1234.jpg`. Preto nie je potrebná žiadna
 databáza.
+
+## Premietanie v sále
+
+Otvor `/slideshow` na notebooku pripojenom k projektoru alebo televízoru
+a klikni na tlačidlo vpravo hore pre celú obrazovku. Fotky sa striedajú po
+siedmich sekundách a nová fotka predbehne rad, takže hosť svoju fotku uvidí
+krátko po odoslaní. Videá sa preskakujú, na plátne by ich aj tak nikto
+nepočul.
 
 ## Jazyk
 
@@ -128,6 +137,11 @@ Vygeneruj QR kód na svoju adresu a daj ho na kartičky k stolom.
 - Súbory sa počítajú do úložiska **tvojho** Google účtu. Fotky sú po 3 až
   5 MB, videá aj 100 MB za minútu záznamu - pri videách sleduj voľné miesto.
 - Nahráva sa originál bez zmenšovania.
+- Dva súbory idú naraz. Wake Lock drží obrazovku zapnutú, inak by uspatý
+  prehliadač prenos zastavil. Na pozadí to nefunguje a ani nemôže - webová
+  stránka na to nemá prostriedky.
+- Pri zlyhaní sa každý súbor skúsi ešte raz a tlačidlo sa zmení na „Skúsiť
+  znova"; už odoslané súbory sa neposielajú druhýkrát.
 - Galéria je prístupná každému, kto pozná adresu; samotný Drive priečinok
   zostáva súkromný, súbory idú cez `/api/photo/[id]`.
 

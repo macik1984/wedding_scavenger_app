@@ -19,6 +19,10 @@ export const copy = {
     uploading: 'Odosielam',
     keepOpen: 'Nechajte stránku otvorenú a obrazovku zapnutú, kým sa to nedokončí.',
     bigFile: 'Veľké video pošlite radšej na wifi, na mobilných dátach to potrvá.',
+    retry: 'Skúsiť znova',
+    retryNote: 'Poslané súbory sa neposielajú druhýkrát.',
+    offline: 'Zdá sa, že ste bez pripojenia. Skúste to prosím o chvíľu.',
+    dupes: (n) => `${n} ${n === 1 ? 'súbor už bol' : 'súborov už bolo'} v zozname.`,
     selected: (n) => `${n} ${n === 1 ? 'súbor' : n < 5 ? 'súbory' : 'súborov'}`,
 
     missionsTitle: 'Vypátrajte aspoň niečo z tohto',
@@ -47,6 +51,8 @@ export const copy = {
     empty: 'Zatiaľ nič. Buďte prví.',
     loadMore: 'Načítať ďalšie',
     close: 'Zavrieť',
+    slideshow: 'Premietanie',
+    slideshowEmpty: 'Čaká sa na prvé fotky.',
 
     errName: 'Najprv prosím zadajte meno.',
     errFiles: 'Vyberte aspoň jeden súbor.',
@@ -74,6 +80,10 @@ export const copy = {
     uploading: 'Sending',
     keepOpen: 'Keep this page open and your screen awake until it finishes.',
     bigFile: 'Large videos go faster on wifi than on mobile data.',
+    retry: 'Try again',
+    retryNote: 'Files already sent will not be sent twice.',
+    offline: 'You seem to be offline. Please try again in a moment.',
+    dupes: (n) => `${n} file${n === 1 ? ' was' : 's were'} already in the list.`,
     selected: (n) => `${n} file${n === 1 ? '' : 's'}`,
 
     missionsTitle: 'Hunt down at least a few of these',
@@ -102,6 +112,8 @@ export const copy = {
     empty: 'Nothing yet. Be the first.',
     loadMore: 'Load more',
     close: 'Close',
+    slideshow: 'Slideshow',
+    slideshowEmpty: 'Waiting for the first photos.',
 
     errName: 'Please enter your name first.',
     errFiles: 'Pick at least one file.',
